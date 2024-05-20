@@ -18,7 +18,7 @@ from consts import (
     HGSS_COMMANDS
 )
 
-TAGS_1_PARAM = set(map(MessageTag, range(MessageTag.TAG_NONE_SIDE_CONSCIOUS.value, MessageTag.TAG_NICKNAME_NICKNAME.value)))
+TAGS_1_PARAM = set(map(MessageTag, range(MessageTag.TAG_NONE_SIDE.value, MessageTag.TAG_NICKNAME_NICKNAME.value)))
 TAGS_2_PARAMS = set(map(MessageTag, range(MessageTag.TAG_NICKNAME_NICKNAME.value, MessageTag.TAG_NICKNAME_NICKNAME_MOVE.value)))
 TAGS_3_PARAMS = set(map(MessageTag, range(MessageTag.TAG_NICKNAME_NICKNAME_MOVE.value, MessageTag.TAG_NICKNAME_ABILITY_NICKNAME_MOVE.value)))
 TAGS_4_PARAMS = set(map(MessageTag, range(MessageTag.TAG_NICKNAME_ABILITY_NICKNAME_MOVE.value, MessageTag.TAG_TRCLASS_TRNAME_NICKNAME_TRCLASS_TRNAME_NICKNAME.value)))
@@ -39,7 +39,7 @@ def count_message_params(tag: MessageTag) -> int:
             return 0
 
 def parse_message_params(tag: MessageTag, chunks: Iterable[int]) -> list[str]:
-    return list(map(lambda _: Battler(next(chunks)).name, range(count_message_params(tag))))
+    return list(map(lambda _: grab_battler_str(next(chunks)), range(count_message_params(tag))))
 
 def format(param: any, chunks: Iterable, labels: dict, i: int, label_offset: int, gmm_bank: str) -> list[str]:
     params = []
@@ -49,12 +49,13 @@ def format(param: any, chunks: Iterable, labels: dict, i: int, label_offset: int
             params.append(param.name)
             params.extend(parse_message_params(param, chunks))
         case MessageId():
-            gmm_bank_parts = gmm_bank.split('_')
-            gmm_bank_prefix = '_'.join([
-                *gmm_bank_parts[:-1],
-                f'{int(gmm_bank_parts[-1]):08}'
-            ])
-            params.append(f'{gmm_bank_prefix}_{param.id:05}')
+            #gmm_bank_parts = gmm_bank.split('_')
+            #gmm_bank_prefix = '_'.join([
+            #    *gmm_bank_parts[:-1],
+            #    f'{int(gmm_bank_parts[-1]):08}'
+            #])
+            #params.append(f'{gmm_bank_prefix}_{param.id:05}')
+            params.append(str(param.id))
         case Enum():
             params.append(param.name)
         case Label():
@@ -80,6 +81,10 @@ def count_varargs(param: any) -> int:
         case _:
             return 0
 
+# oh your python is so unreadable blurose... fuck out my life
+def grab_battler_str(battler_var) -> str:
+    return (((Battler(battler_var & Battler.BATTLER_RELATIVE_MASK.value).name + "|") if (battler_var & Battler.BATTLER_RELATIVE_MASK.value) != 0 else "") + Battler(battler_var & Battler.BATTLER_BATTLER_MASK.value).name)
+
 def parse_commands(chunks: Iterable, cmd: list[Command], gmm_bank: str) -> tuple[list, dict]:
     parsed = []
     labels = {}
@@ -91,8 +96,12 @@ def parse_commands(chunks: Iterable, cmd: list[Command], gmm_bank: str) -> tuple
         params = []
         j = sum(map(lambda type: 2 if type in (VariableValue, MonParamValue) else 1, command.params))
 
+        #print(command.name)
         for param_type in command.params:
-            if param_type in (VariableValue, MonParamValue):
+            if param_type == Battler:
+                param = grab_battler_str(next(chunks))
+                j = j - 1
+            elif param_type in (VariableValue, MonParamValue):
                 param = param_type(next(chunks), next(chunks))
                 j = j - 2
             else:
@@ -100,8 +109,9 @@ def parse_commands(chunks: Iterable, cmd: list[Command], gmm_bank: str) -> tuple
                 j = j - 1
             
             i = i + 1 + count_varargs(param)
-            params.extend(format(param, chunks, labels, i, j, gmm_bank))            
-        
+            #print(param)
+            params.extend(format(param, chunks, labels, i, j, gmm_bank))
+
         parsed.append(params)
         i = i + 1
     
@@ -113,10 +123,9 @@ def pairwise(it: Iterable) -> Iterable:
 
 STR_VAR_PAT = re.compile(r'\{STRVAR_1 \d+, (\d+), \d+\}')
 
-def format_txt_string(param: str, txt_root: XML.Element) -> str:
+def format_txt_string(param: str, txt_root) -> str:
     gmm_id = int(param.split('_')[-1])
-    txt = txt_root[gmm_id + 1].find('./language[@name="English"]').text \
-            .replace('\\n', ' ') \
+    txt = txt_root[gmm_id].replace('\\n', ' ') \
             .replace('\\f', ' ') \
             .replace('\\r', ' ') \
             .strip()
@@ -126,7 +135,7 @@ def format_txt_string(param: str, txt_root: XML.Element) -> str:
     
     return txt
 
-def dumps(scr: bytes, cmd: list[Command], txt_root: XML.Element, gmm_bank: str) -> str:
+def dumps(scr: bytes, cmd: list[Command], txt_root, gmm_bank: str) -> str:
     chunks = []
     for i in range(len(scr) // 4):
         chunks.append(int.from_bytes(scr[(i * 4):((i+1) * 4)], 'little'))
@@ -143,39 +152,40 @@ def dumps(scr: bytes, cmd: list[Command], txt_root: XML.Element, gmm_bank: str) 
         '',
         '_000:',
     ]
+
     for command, params in pairwise(parsed):
         if i in labels:
             lines.append(f'\n{labels[i]}:')
         
+        #print(params)
         match command:
             case 'PrintMessage' | 'PrintGlobalMessage' | 'BufferMessage':
                 lines.append(f'    // {format_txt_string(params[0], txt_root)}')
             case 'BufferLocalMessage':
                 lines.append(f'    // {format_txt_string(params[1], txt_root)}')
-
         lines.append(f'    {command} {", ".join(params)}')
         i = i + len(params) + sum(map(count_varargs, params)) + 1
     
     lines.append('')
     return '\n'.join(lines)
 
-def dump(fin_name: str, fout_name: str, cmd: list[Command], txt_root: XML.Element, gmm_bank: str):
+def dump(fin_name: str, fout_name: str, cmd: list[Command], txt_root, gmm_bank: str):
     print(f'{fin_name} -> {fout_name}')
     with open(fin_name, 'rb') as fin, open(fout_name, 'w') as fout:
         scr = fin.read()
         fout.write(dumps(scr, cmd, txt_root, gmm_bank))
 
-def dump_batch(in_dir: Path, out_dir: Path, file_prefix: str, cmd: list[Command], txt_root: XML.Element, gmm_bank: str):
-    for fin_name in in_dir.glob('*.bin'):
-        fout_name = out_dir / f'{file_prefix}_{fin_name.stem.split("_")[-1][4:]}.s'
+def dump_batch(in_dir: Path, out_dir: Path, file_prefix: str, cmd: list[Command], txt_root, gmm_bank: str):
+    for fin_name in in_dir.glob('*'):
+        fout_name = out_dir / f'{file_prefix}_{fin_name.stem.split("_")[-1]}.s'
         dump(fin_name, fout_name, cmd, txt_root, gmm_bank)
 
-def dump_all(cmd: list[Command], txt_root: XML.Element, gmm_bank: str, src_dir: Path, dst_dir: Path):
-    raw_be_dir = src_dir / 'be_seq'
+def dump_all(cmd: list[Command], txt_root, gmm_bank: str, src_dir: Path, dst_dir: Path):
+    raw_be_dir = src_dir / 'battle_eff_seq'
     dmp_be_dir = dst_dir / 'effects'
-    raw_sub_dir = src_dir / 'sub_seq'
+    raw_sub_dir = src_dir / 'battle_sub_seq'
     dmp_sub_dir = dst_dir / 'subscripts'
-    raw_waza_dir = src_dir / 'waza_seq'
+    raw_waza_dir = src_dir / 'battle_move_seq'
     dmp_waza_dir = dst_dir / 'moves'
 
     dmp_be_dir.mkdir(exist_ok=True, parents=True)
@@ -219,6 +229,6 @@ if __name__ == '__main__':
         case _:
             raise ValueError(f'Unexpected value {args.game}')
     
-    gmm_bank = f'{prefix}_{bank:04}'
-    txt_root = XML.parse(Path(args.msg_dir) / f'{prefix}_{bank:04}.gmm').getroot()
+    gmm_bank = ""#f'{prefix}_{bank:04}'
+    txt_root = open(Path(args.msg_dir), "r").read().split("\n")
     dump_all(cmd, txt_root, gmm_bank, Path(args.src_dir), Path(args.dst_dir))
