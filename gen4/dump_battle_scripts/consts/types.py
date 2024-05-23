@@ -9,7 +9,7 @@ def _sint(i: int, n: int) -> int:
 class Label():
     def __init__(self, address: int):
         self.addr = _sint(address, 32)
-    
+
     def __str__(self):
         return f'Label(addr={self.addr})'
 
@@ -37,7 +37,7 @@ VARIABLE_VALUE_MAP = {
     Variable.BSCRIPT_VAR_SIDE_EFFECT_MON_SELF_TURN_STATUS_FLAGS: varvals.SelfTurnStatus,
     Variable.BSCRIPT_VAR_SIDE_EFFECT_PARAM: varvals.EffectSubScript,
     Variable.BSCRIPT_VAR_SIDE_EFFECT_TYPE: varvals.SideEffectType,
-    
+
     MonParam.BMON_DATA_ABILITY: varvals.Ability,
     MonParam.BMON_DATA_GENDER: varvals.Gender,
     MonParam.BMON_DATA_HELD_ITEM: varvals.Item,
@@ -54,23 +54,25 @@ class VariableValue():
     def __init__(self, param: int, value: int):
         self.param = Variable(param)
         self.value = value
-    
+
     def __str__(self) -> str:
         return f'{self.param.name} -> {self.value}'
-    
+
     def name(self) -> str:
         return self.param.name
-    
+
     def value_s(self) -> str:
         match self.param:
             case _ if self.param in VARIABLE_VALUE_MAP:
-                # my hand has been forced 
+                # my hand has been forced
                 return str(VARIABLE_VALUE_MAP[self.param](self.value)).split(".")[1]
                 #return VARIABLE_VALUE_MAP[self.param](self.value)._name_
             case Variable.BSCRIPT_VAR_SIDE_EFFECT_FLAGS_DIRECT | Variable.BSCRIPT_VAR_SIDE_EFFECT_FLAGS_INDIRECT | Variable.BSCRIPT_VAR_SIDE_EFFECT_FLAGS_ABILITY:
+                # my hand has once again been forced
                 flags = varvals.MoveSideEffectFlags(self.value & varvals.MoveSideEffectFlags.MOVE_SIDE_EFFECT_FLAGS)
+                flagStr = str(flags).split(".")[1]
                 target = varvals.EffectSubScript(self.value & varvals.MoveSideEffectFlags.MOVE_SIDE_EFFECT_SUBSCRIPT)
-                return f'{flags.name}|{target.name}'
+                return f'{flagStr}|{target.name}'
             case Variable.BSCRIPT_VAR_CALC_TEMP: # this can be anything, so keep it in hex format for now
                 return f'0x{self.value:08X}'
             case _: # all others are just standard numbers
@@ -87,7 +89,7 @@ class MessageId():
     __slots__ = ('id')
     def __init__(self, id: int):
         self.id = id
-    
+
     def __str__(self) -> str:
         return f'{self.id}'
 

@@ -14,6 +14,9 @@ from consts import (
     MessageTag,
     MonParamValue,
     VariableValue,
+    EffectScript,
+    Subscript,
+    Move,
     PLAT_COMMANDS,
     HGSS_COMMANDS
 )
@@ -69,7 +72,7 @@ def format(param: any, chunks: Iterable, labels: dict, i: int, label_offset: int
             params.append('TRUE' if param else 'FALSE')
         case _:
             params.append(str(param))
-    
+
     return params
 
 def count_varargs(param: any) -> int:
@@ -107,14 +110,14 @@ def parse_commands(chunks: Iterable, cmd: list[Command], gmm_bank: str) -> tuple
             else:
                 param = param_type(next(chunks))
                 j = j - 1
-            
+
             i = i + 1 + count_varargs(param)
             #print(param)
             params.extend(format(param, chunks, labels, i, j, gmm_bank))
 
         parsed.append(params)
         i = i + 1
-    
+
     return parsed, labels
 
 def pairwise(it: Iterable) -> Iterable:
@@ -129,10 +132,10 @@ def format_txt_string(param: str, txt_root) -> str:
             .replace('\\f', ' ') \
             .replace('\\r', ' ') \
             .strip()
-    
+
     while (match := STR_VAR_PAT.search(txt)):
         txt = re.sub(STR_VAR_PAT, f'{{{match.group(1)}}}', txt, 1)
-    
+
     return txt
 
 def dumps(scr: bytes, cmd: list[Command], txt_root, gmm_bank: str) -> str:
@@ -146,9 +149,9 @@ def dumps(scr: bytes, cmd: list[Command], txt_root, gmm_bank: str) -> str:
     # Second pass: output construction
     i = 0
     lines = [
-        '    .include "macros/btlcmd.inc"',
+        '.include "asm/include/battle_commands.inc"',
         '',
-        '    .data',
+        '.data',
         '',
         '_000:',
     ]
@@ -156,7 +159,7 @@ def dumps(scr: bytes, cmd: list[Command], txt_root, gmm_bank: str) -> str:
     for command, params in pairwise(parsed):
         if i in labels:
             lines.append(f'\n{labels[i]}:')
-        
+
         #print(params)
         match command:
             case 'PrintMessage' | 'PrintGlobalMessage' | 'BufferMessage':
@@ -165,7 +168,7 @@ def dumps(scr: bytes, cmd: list[Command], txt_root, gmm_bank: str) -> str:
                 lines.append(f'    // {format_txt_string(params[1], txt_root)}')
         lines.append(f'    {command} {", ".join(params)}')
         i = i + len(params) + sum(map(count_varargs, params)) + 1
-    
+
     lines.append('')
     return '\n'.join(lines)
 
@@ -177,7 +180,14 @@ def dump(fin_name: str, fout_name: str, cmd: list[Command], txt_root, gmm_bank: 
 
 def dump_batch(in_dir: Path, out_dir: Path, file_prefix: str, cmd: list[Command], txt_root, gmm_bank: str):
     for fin_name in in_dir.glob('*'):
-        fout_name = out_dir / f'{file_prefix}_{fin_name.stem.split("_")[-1]}.s'
+        # kinda defeats the purpose but whatever
+        if "effect_script" in file_prefix:
+            name_suffix = EffectScript(int(fin_name.stem.split("_")[-1])).name[len("MOVE_EFFECT_"):]
+        elif "subscript" in file_prefix:
+            name_suffix = Subscript(int(fin_name.stem.split("_")[-1])).name[len("BATTLE_SUBSCRIPT_"):]
+        else:
+            name_suffix = Move(int(fin_name.stem.split("_")[-1])).name[len("MOVE_"):]
+        fout_name = out_dir / f'{file_prefix}_{fin_name.stem.split("_")[-1]}_{name_suffix}.s'
         dump(fin_name, fout_name, cmd, txt_root, gmm_bank)
 
 def dump_all(cmd: list[Command], txt_root, gmm_bank: str, src_dir: Path, dst_dir: Path):
@@ -191,7 +201,7 @@ def dump_all(cmd: list[Command], txt_root, gmm_bank: str, src_dir: Path, dst_dir
     dmp_be_dir.mkdir(exist_ok=True, parents=True)
     dmp_sub_dir.mkdir(exist_ok=True, parents=True)
     dmp_waza_dir.mkdir(exist_ok=True, parents=True)
-    
+
     dump_batch(raw_be_dir, dmp_be_dir, 'effect_script', cmd, txt_root, gmm_bank)
     dump_batch(raw_sub_dir, dmp_sub_dir, 'subscript', cmd, txt_root, gmm_bank)
     dump_batch(raw_waza_dir, dmp_waza_dir, 'move_script', cmd, txt_root, gmm_bank)
@@ -214,7 +224,7 @@ if __name__ == '__main__':
     ARGP.add_argument('-m', '--msg-dir',
                       help='root directory containing GMM definitions of message banks',
                       required=True)
-    
+
     cmd = []
     args = ARGP.parse_args()
     match args.game:
@@ -228,7 +238,7 @@ if __name__ == '__main__':
             prefix = 'msg'
         case _:
             raise ValueError(f'Unexpected value {args.game}')
-    
+
     gmm_bank = ""#f'{prefix}_{bank:04}'
     txt_root = open(Path(args.msg_dir), "r").read().split("\n")
     dump_all(cmd, txt_root, gmm_bank, Path(args.src_dir), Path(args.dst_dir))

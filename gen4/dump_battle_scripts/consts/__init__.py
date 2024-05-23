@@ -1,5 +1,6 @@
 from .enums import *
 from .types import *
+from .varvals import *
 
 COMMON_COMMANDS = [
     Command('PlayEncounterAnimation',       []),
