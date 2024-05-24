@@ -258,7 +258,7 @@ HGSS_COMMANDS = [
     Command('GotoIfCanApplyKnockOffBoost',[Label]),
     Command('GotoIfParentalBondIsActive',[Label]),
     Command('ChangePermanentBackground',[Background, Terrain]),
-    Command('ChangeExecutionOrderPriority',[Battler,bool,Label]),
+    Command('ChangeExecutionOrderPriority',[Battler,ExecutionOrder,Label]),
     Command('SetBindingTurns',[Label]),
     Command('ClearBindingTurns',[]),
     Command('CanClearPrimalWeather',[int,Label,Label,Label,Label]),

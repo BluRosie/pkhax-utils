@@ -187,7 +187,7 @@ def dump_batch(in_dir: Path, out_dir: Path, file_prefix: str, cmd: list[Command]
             name_suffix = Subscript(int(fin_name.stem.split("_")[-1])).name[len("BATTLE_SUBSCRIPT_"):]
         else:
             name_suffix = Move(int(fin_name.stem.split("_")[-1])).name[len("MOVE_"):]
-        fout_name = out_dir / f'{file_prefix}_{fin_name.stem.split("_")[-1]}_{name_suffix}.s'
+        fout_name = out_dir / f'{file_prefix}_{int(fin_name.stem.split("_")[-1]):04d}_{name_suffix}.s'
         dump(fin_name, fout_name, cmd, txt_root, gmm_bank)
 
 def dump_all(cmd: list[Command], txt_root, gmm_bank: str, src_dir: Path, dst_dir: Path):

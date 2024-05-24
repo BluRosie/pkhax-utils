@@ -32,7 +32,6 @@ match args.game:
 lines = [
     '.ifndef ASM_BATTLE_SCRIPT_INC',
     '.set ASM_BATTLE_SCRIPT_INC, 1',
-    '.option alignment off',
     '.include "asm/include/interop_macros.inc"',
     '.include "asm/include/abilities.inc"',
     '.include "asm/include/hold_item_effects.inc"',
@@ -45,46 +44,113 @@ lines = [
 ]
 
 for i, cmd in enumerate(commands):
+# manual cases because not all args are encoded or are weird
     if "PrintMessage" in cmd.name or "PrintGlobalMessage" in cmd.name or "BufferMessage" in cmd.name:
-        for j in [6]:
-            currLine = f'    .macro {cmd.name} {arg_list(cmd.params)}'
-            argList = ""
-            if j > 1:
-                currLine = currLine + f", arg_2"
-                argList = argList + f"    .long \\arg_2"
-                for k in range(1, j):
-                    currLine = currLine + f", arg_{k+2}"
-                    argList = argList + f", \\arg_{k+2}"
-            elif j == 1:
-                currLine = currLine + f", arg_3"
-                argList = argList + f"    .long \\arg_2"
-            lines.append(currLine)
-            lines.append(f'    .long {i}')
-            for k in range(len(cmd.params)):
-                lines.append(f'    .long \\arg_{k}')
-            if (argList != ""):
-                lines.append(argList)
-            lines.append('    .endm\n')
+        currLine = f"""    .macro {cmd.name} msg_id, tag, arg_0, arg_1, arg_2, arg_3, arg_4, arg_5
+    .long {i}
+    .long \\msg_id
+    .long \\tag
+    .if \\tag > TAG_NONE
+        .long \\arg_0
+        .if \\tag > TAG_TRNAME
+            .long \\arg_1
+            .if \\tag > TAG_TRCLASS_TRNAME
+                .long \\arg_2
+                .if \\tag > TAG_TRCLASS_TRNAME_ITEM
+                    .long \\arg_3
+                    .if \\tag > TAG_TRCLASS_TRNAME_TRCLASS_TRNAME
+                        .long \\arg_4
+                        .long \\arg_5
+                    .endif
+                .endif
+            .endif
+        .endif
+    .endif
+    .endm
+"""
+        lines.append(currLine)
     elif "BufferLocalMessage" in cmd.name:
-        for j in [6]:
-            currLine = f'    .macro {cmd.name} {arg_list(cmd.params)}'
-            argList = ""
-            if j > 1:
-                currLine = currLine + f", arg_3"
-                argList = argList + f"    .long \\arg_3"
-                for k in range(1, j):
-                    currLine = currLine + f", arg_{k+3}"
-                    argList = argList + f", \\arg_{k+3}"
-            elif j == 1:
-                currLine = currLine + f", arg_4"
-                argList = argList + f"    .long \\arg_3"
-            lines.append(currLine)
-            lines.append(f'    .long {i}')
-            for k in range(len(cmd.params)):
-                lines.append(f'    .long \\arg_{k}')
-            if (argList != ""):
-                lines.append(argList)
-            lines.append('    .endm\n')
+        currLine = f"""    .macro {cmd.name} battler, msg_id, tag, arg_0, arg_1, arg_2, arg_3, arg_4, arg_5
+    .long {i}
+    .long \\battler
+    .long \\msg_id
+    .long \\tag
+    .if \\tag > TAG_NONE
+        .long \\arg_0
+        .if \\tag > TAG_TRNAME
+            .long \\arg_1
+            .if \\tag > TAG_TRCLASS_TRNAME
+                .long \\arg_2
+                .if \\tag > TAG_TRCLASS_TRNAME_ITEM
+                    .long \\arg_3
+                    .if \\tag > TAG_TRCLASS_TRNAME_TRCLASS_TRNAME
+                        .long \\arg_4
+                        .long \\arg_5
+                    .endif
+                .endif
+            .endif
+        .endif
+    .endif
+    .endm
+"""
+        lines.append(currLine)
+    elif "CompareVarToValue" in cmd.name:
+        currLine = f"""    .macro CompareVarToValue op, var, val, jump
+    .long 32
+    .long \\op
+    .long \\var
+    .long \\val
+    .long (\\jump-.) / 4 - 1
+    .endm
+"""
+        lines.append(currLine)
+    elif "UpdateVarFromVar" in cmd.name:
+        currLine = f"""    .macro UpdateVarFromVar op, dst, src
+    .long 57
+    .long \\op
+    .long \\dst
+    .long \\src
+    .endm
+"""
+        lines.append(currLine)
+    elif "UpdateVar" in cmd.name:
+        currLine = f"""    .macro UpdateVar op, var, val
+    .long 50
+    .long \\op
+    .long \\var
+    .long \\val
+    .endm
+"""
+        lines.append(currLine)
+    elif "DivideVarByValue" in cmd.name:
+        currLine = f"""    .macro DivideVarByValue var, val
+    .long 85
+    .long \\var
+    .long \\val
+    .endm
+"""
+        lines.append(currLine)
+    elif "CompareMonDataToValue" in cmd.name:
+        currLine = f"""    .macro CompareMonDataToValue op, battler, param, val, jump
+    .long 33
+    .long \\op
+    .long \\battler
+    .long \\param
+    .long \\val
+    .long (\\jump-.) / 4 - 1
+    .endm
+"""
+        lines.append(currLine)
+    elif "UpdateMonDataFromVar" not in cmd.name and "UpdateMonData" in cmd.name:
+        currLine = f"""    .macro UpdateMonData op, battler, param, val
+    .long 52
+    .long \\op
+    .long \\battler
+    .long \\param
+    .long \\val
+    .endm
+"""
+        lines.append(currLine)
     else:
         if cmd.params:
             lines.append(f'    .macro {cmd.name} {arg_list(cmd.params)}')
@@ -93,7 +159,10 @@ for i, cmd in enumerate(commands):
         lines.append(f'    .long {i}')
 
         for j in range(len(cmd.params)):
-            lines.append(f'    .long \\arg_{j}')
+            if "Label" in str(cmd.params[j]):
+                lines.append(f'    .long (((\\arg_{j} - .) / 4) - {len(cmd.params) - j})')
+            else:
+                lines.append(f'    .long \\arg_{j}')
         lines.append('    .endm\n')
 
 lines.append(f'.endif')

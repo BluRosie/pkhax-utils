@@ -23,7 +23,7 @@ class BattleSlot(Enum):
     BATTLER_ENEMY  = auto()
     BATTLER_PLAYER2 = auto()
     BATTLER_ENEMY2  = auto()
-    BATTLER_CATEGORY_FORCED_OUT = auto()
+    BATTLER_FORCED_OUT = auto()
     BATTLER_NONE          = 0xFF
 
 class MoveSideEffectFlags(IntFlag):

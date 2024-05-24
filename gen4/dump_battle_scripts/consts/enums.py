@@ -26,11 +26,11 @@ class Battler(Enum):
     BATTLER_CATEGORY_SWITCHED_MON_AFTER = auto()
     BATTLER_CATEGORY_MSG_TEMP           = 0xFF
 
-    BATTLER_ALLY                        = 0x8000
-    BATTLER_ENEMY                       = 0x4000
-    BATTLER_ACROSS                      = 0x2000
+    BATTLER_RELATIVE_ALLY                        = 0x8000
+    BATTLER_RELATIVE_ENEMY                       = 0x4000
+    BATTLER_RELATIVE_ACROSS                      = 0x2000
 
-    BATTLER_RELATIVE_MASK = BATTLER_ALLY | BATTLER_ENEMY | BATTLER_ACROSS
+    BATTLER_RELATIVE_MASK = BATTLER_RELATIVE_ALLY | BATTLER_RELATIVE_ENEMY | BATTLER_RELATIVE_ACROSS
     BATTLER_BATTLER_MASK = 0xFF
 
 class Throw(Enum):
@@ -205,6 +205,7 @@ class Variable(Enum):
     BSCRIPT_VAR_DEFENDER_ASSURANCE_DAMAGE_MASK         = auto()
     BSCRIPT_VAR_ATTACKER_SHELL_BELL_DAMAGE_DEALT       = auto()
     BSCRIPT_VAR_WAITING_BATTLERS                       = auto()
+    BSCRIPT_VAR_FIX_THIS_LATER = 16777216
 
 class MonParam(Enum):
     BMON_DATA_SPECIES                  = 0
@@ -910,7 +911,7 @@ class ItemEffect(Enum):
     HOLD_EFFECT_EVOLVE_PORYGON2       = auto()
     HOLD_EFFECT_EVOLVE_DUSCLOPS       = auto()
 
-    HOLD_EFFECT_PLATE_BOOST_FAIRY = auto()
+    HOLD_EFFECT_ARCEUS_FAIRY = auto()
     HOLD_EFFECT_WEAKEN_SE_FAIRY = auto()
     HOLD_EFFECT_BOOST_DEF_ON_PHYSICAL_HIT = auto()
     HOLD_EFFECT_BOOST_SPDEF_ON_SPECIAL_HIT = auto()
@@ -2288,3 +2289,8 @@ class Background(Enum):
     BATTLE_BG_GRASSY_TERRAIN = auto()
     BATTLE_BG_PSYCHIC_TERRAIN = auto()
     BATTLE_BG_CURRENT = 0xFFFFFFFF
+
+class ExecutionOrder(Enum):
+    EXECUTION_ORDER_NORMAL = 0
+    EXECUTION_ORDER_AFTER_YOU = auto()
+    EXECUTION_ORDER_QUASH = auto()
